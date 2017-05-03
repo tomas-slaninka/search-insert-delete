@@ -66,9 +66,12 @@ void deleter(void * input){
   
 	while(1){
 		usleep(rand()%1000);
+		
 		sem_wait(data.noSearcher);
 		sem_wait(data.noInserter);
+		
 		printf("deleter %d maze\n",data.ic);
+		
 		sem_post(data.noInserter);
 		sem_post(data.noSearcher);
 	}
