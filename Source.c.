@@ -1,0 +1,120 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <semaphore.h>
+#include <pthread.h>
+#include <unistd.h>
+
+typedef struct{
+	sem_t *dataCopied;
+	sem_t *insertMutex;
+	sem_t *noSearcher;
+	sem_t *noInserter;
+	sem_t *noSearcherMutex;
+	sem_t *noInserterMutex;
+	int noSearcherCounter, noInserterCounter,ic;
+}DATA;
+
+void searcher(void * input){
+	DATA data = *((DATA*)input);
+	sem_post(data.dataCopied);
+	while(1){
+		usleep(rand()%1000);
+    
+		sem_wait(data.noSearcherMutex);
+		data.noSearcherCounter++;
+		if(data.noSearcherCounter == 1)
+			sem_wait(data.noSearcher);      
+		sem_post(data.noSearcherMutex);
+    
+		printf("searcher %d hlada\n",data.ic);
+    
+		sem_wait(data.noSearcherMutex);
+		data.noSearcherCounter--;
+		if(data.noSearcherCounter == 0)
+			sem_post(data.noSearcher);
+		sem_post(data.noSearcherMutex);
+	}
+}
+
+void inserter(void * input){
+	DATA data = *((DATA*)input);
+	sem_post(data.dataCopied);
+	while(1){
+		usleep(rand()%1000);
+    
+		sem_wait(data.noInserterMutex);
+		data.noInserterCounter++;
+		if(data.noInserterCounter == 1)
+			sem_wait(data.noInserter);
+		sem_post(data.noInserterMutex);
+    
+		sem_wait(data.insertMutex);
+		printf("inserter %d vklada\n",data.ic);
+		sem_post(data.insertMutex);
+		
+    sem_wait(data.noInserterMutex);
+		data.noInserterCounter--;
+		if(data.noInserterCounter == 0)
+			sem_post(data.noInserter);
+		sem_post(data.noInserterMutex);
+	}
+}
+
+void deleter(void * input){
+	DATA data = *((DATA*)input);
+	sem_post(data.dataCopied);
+  
+	while(1){
+		usleep(rand()%1000);
+		sem_wait(data.noSearcher);
+		sem_wait(data.noInserter);
+		printf("deleter %d maze\n",data.ic);
+		sem_post(data.noInserter);
+		sem_post(data.noSearcher);
+	}
+}
+
+int main(){
+	int i;
+	pthread_t id[9];
+	sem_t noSearcherMutex, noInserterMutex, noSearcher, noInserter, dataCopied, insertMutex;
+	DATA data;
+	
+	data.noSearcherCounter = 0;
+	data.noInserterCounter = 0;
+	sem_init(&dataCopied, 0,0);
+	data.dataCopied = &dataCopied;
+	sem_init(&noSearcher, 0,1);
+	data.noSearcher = &noSearcher;
+	sem_init(&noInserter, 0,1);
+	data.noInserter = &noInserter;
+	sem_init(&noSearcherMutex, 0,1);
+	data.noSearcherMutex = &noSearcherMutex;
+	sem_init(&noInserterMutex, 0,1);
+	data.noInserterMutex = &noInserterMutex;
+	sem_init(&insertMutex, 0,1);
+	data.insertMutex = &insertMutex;
+	
+	for(i=0;i<4;i++){
+		data.ic = i;
+		pthread_create(&id[i],NULL,searcher,(void*)&data);
+		sem_wait(data.dataCopied);
+	}
+	for(i=4;i<7;i++){
+		data.ic = i;
+		pthread_create(&id[i],NULL,inserter,(void*)&data);
+		sem_wait(data.dataCopied);
+	}
+
+	for(i=7;i<9;i++){
+		data.ic = i;
+		pthread_create(&id[i],NULL,deleter,(void*)&data);
+		sem_wait(data.dataCopied);
+	}
+
+	for(i=0;i<9;i++){
+		pthread_join(id[i],NULL);
+	}
+
+	return 0;
+}
